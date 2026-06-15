@@ -1,5 +1,3 @@
-const fetch = require('node-fetch');
-
 // Netlify Function: fetch-schedule
 // Env vars used:
 // LIVE_API_PROVIDER: 'api-football' or 'football-data'
