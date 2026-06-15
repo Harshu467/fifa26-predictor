@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { initialMatches, stats, news } from '../../../match-data';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 // GET /api/live/schedule
 export async function GET() {

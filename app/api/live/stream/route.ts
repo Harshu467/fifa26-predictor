@@ -2,6 +2,7 @@ import { Readable } from 'stream';
 import { initialMatches } from '../../../match-data';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 function createStream() {
   const stream = new Readable({ read() {} });
