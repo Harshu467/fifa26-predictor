@@ -13,6 +13,7 @@ import {
   news as sampleNews,
   getMatchResult
 } from './match-data';
+import useLiveData from './hooks/useLiveData';
 
 const predictionMap: Record<Outcome, string> = {
   home: 'Home Win',
@@ -84,6 +85,14 @@ export default function HomePage() {
   useEffect(() => {
     document.documentElement.classList.toggle('theme-light', theme === 'light');
   }, [theme]);
+
+  const live = useLiveData();
+  useEffect(() => {
+    if (live) {
+      // provider returns { matches, stats, news } or similar
+      if (live.matches) setMatches(live.matches as Match[]);
+    }
+  }, [live]);
 
   useEffect(() => {
     try {
