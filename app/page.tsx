@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Outcome,
   Match,
@@ -10,6 +10,7 @@ import {
   formatMatchDate,
   calculateGroupRankings,
   roundOf16Schedule,
+  news as sampleNews,
   getMatchResult
 } from './match-data';
 
@@ -19,59 +20,170 @@ const predictionMap: Record<Outcome, string> = {
   draw: 'Tie'
 };
 
+function TeamCard({ name, selected, onClick }: { name: string; selected: boolean; onClick: () => void }) {
+  function handleKey(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  }
+  return (
+    <div
+      className={`team-card ${selected ? 'selected' : ''}`}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-pressed={selected}
+      onKeyDown={handleKey}
+    >
+      <strong>{name}</strong>
+    </div>
+  );
+}
+
+function MatchCard({ match, value, onSelect }: { match: Match; value?: Outcome; onSelect: (o: Outcome) => void }) {
+  const isCompleted = match.status === 'completed';
+  return (
+    <div className="match-card animate-float">
+      <div>
+        <div className="match-meta">
+          <strong>{match.home} vs {match.away}</strong>
+          <span>{formatMatchDate(match.date)}</span>
+          <span className="tag">Group {match.group}</span>
+        </div>
+      </div>
+      <div className="match-actions">
+        <TeamCard name={match.home} selected={(value ?? match.result) === 'home'} onClick={() => !isCompleted && onSelect('home')} />
+        <div className="vs-pill">VS</div>
+        <TeamCard name={match.away} selected={(value ?? match.result) === 'away'} onClick={() => !isCompleted && onSelect('away')} />
+        <div style={{ width: 12 }} />
+        <button className="button-secondary" onClick={() => !isCompleted && onSelect('draw')}>Tie</button>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const [matches, setMatches] = useState<Match[]>(initialMatches);
-  const [predictions, setPredictions] = useState<Record<string, Outcome>>({});
+  const [predictions, setPredictions] = useState<Record<string, Outcome>>(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('predictions') : null;
+      return raw ? (JSON.parse(raw) as Record<string, Outcome>) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    try {
+      return (typeof window !== 'undefined' && localStorage.getItem('theme')) === 'light' ? 'light' : 'dark';
+    } catch (e) {
+      return 'dark';
+    }
+  });
 
-  const upcomingMatches = useMemo(
-    () => matches.filter((match) => match.status === 'upcoming'),
-    [matches]
-  );
+  useEffect(() => {
+    document.documentElement.classList.toggle('theme-light', theme === 'light');
+  }, [theme]);
 
-  const completedMatches = useMemo(
-    () => matches.filter((match) => match.status === 'completed'),
-    [matches]
-  );
+  useEffect(() => {
+    try {
+      localStorage.setItem('predictions', JSON.stringify(predictions));
+    } catch (e) {
+      // ignore
+    }
+  }, [predictions]);
 
-  const groupRankings = useMemo(
-    () => calculateGroupRankings(matches, predictions),
-    [matches, predictions]
-  );
+  useEffect(() => {
+    try {
+      localStorage.setItem('theme', theme);
+    } catch (e) {
+      // ignore
+    }
+  }, [theme]);
 
-  const groupStandings = useMemo(
-    () => groups.map((group) => ({ letter: group.letter, standings: groupRankings[group.letter] })),
-    [groupRankings]
-  );
+  // show past matches first
+  const pastMatches = useMemo(() => matches.filter((m) => m.status === 'completed').sort((a, b) => +new Date(b.date) - +new Date(a.date)), [matches]);
+  const upcomingMatches = useMemo(() => matches.filter((m) => m.status === 'upcoming').sort((a, b) => +new Date(a.date) - +new Date(b.date)), [matches]);
 
-  const roundOf16 = useMemo(() => {
-    const seedMap: Record<string, string> = {};
-    Object.entries(groupRankings).forEach(([group, teams]) => {
-      if (teams[0]) seedMap[`${group}1`] = teams[0].team;
-      if (teams[1]) seedMap[`${group}2`] = teams[1].team;
-    });
-
-    return roundOf16Schedule.map((match) => ({
-      label: match.label,
-      home: seedMap[match.homeSeed] ?? match.homeSeed,
-      away: seedMap[match.awaySeed] ?? match.awaySeed
-    }));
-  }, [groupRankings]);
+  const groupRankings = useMemo(() => calculateGroupRankings(matches, predictions), [matches, predictions]);
 
   function handlePrediction(matchId: string, value: Outcome) {
     setPredictions((prev) => ({ ...prev, [matchId]: value }));
   }
 
   function applyPredictions() {
-    setMatches((prev) =>
-      prev.map((match) =>
-        match.status === 'upcoming' && predictions[match.id]
-          ? {
-              ...match,
-              status: 'completed',
-              result: predictions[match.id]
-            }
-          : match
-      )
+    setMatches((prev) => prev.map((m) => (m.status === 'upcoming' && predictions[m.id] ? { ...m, status: 'completed', result: predictions[m.id] } : m)));
+  }
+
+  // Round of 16 mapping
+  const roundOf16 = useMemo(() => {
+    const seedMap: Record<string, string> = {};
+    Object.entries(groupRankings).forEach(([group, teams]) => {
+      if (teams[0]) seedMap[`${group}1`] = teams[0].team;
+      if (teams[1]) seedMap[`${group}2`] = teams[1].team;
+    });
+    return roundOf16Schedule.map((s) => ({ ...s, home: seedMap[s.homeSeed] ?? s.homeSeed, away: seedMap[s.awaySeed] ?? s.awaySeed }));
+  }, [groupRankings]);
+
+  // component for knockout selection with penalties
+  function KnockoutMatch({ label, home, away }: { label: string; home: string; away: string }) {
+    const [choice, setChoice] = useState<Outcome | undefined>(undefined);
+    const [homePen, setHomePen] = useState<number | ''>('');
+    const [awayPen, setAwayPen] = useState<number | ''>('');
+
+    useEffect(() => { if (choice !== 'draw') { setHomePen(''); setAwayPen(''); } }, [choice]);
+
+    const winner = (() => {
+      if (choice === 'home') return home;
+      if (choice === 'away') return away;
+      if (choice === 'draw' && homePen !== '' && awayPen !== '') {
+        if ((homePen as number) > (awayPen as number)) return home;
+        if ((awayPen as number) > (homePen as number)) return away;
+        return 'Tie';
+      }
+      return undefined;
+    })();
+
+    return (
+      <div className="match-card">
+        <div>
+          <strong>{label}</strong>
+          <div className="small-text">{home} vs {away}</div>
+          <div className="small-text">Winner: {winner ?? 'TBD'}</div>
+        </div>
+        <div className="match-actions">
+          <button className={`button-secondary ${choice === 'home' ? 'selected' : ''}`} onClick={() => setChoice('home')}>{home}</button>
+          <div className="vs-pill">VS</div>
+          <button className={`button-secondary ${choice === 'away' ? 'selected' : ''}`} onClick={() => setChoice('away')}>{away}</button>
+          <div style={{ width: 8 }} />
+          <button className={`button-secondary ${choice === 'draw' ? 'selected' : ''}`} onClick={() => setChoice('draw')}>Decide on penalties</button>
+          {choice === 'draw' && (
+            <div style={{ display: 'flex', gap: 8, marginLeft: 12, alignItems: 'center' }}>
+              <input type="number" min={0} max={10} value={homePen as any} onChange={(e) => setHomePen(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: 56 }} />
+              <span className="small-text">-</span>
+              <input type="number" min={0} max={10} value={awayPen as any} onChange={(e) => setAwayPen(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: 56 }} />
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  function renderGroupGraph(letter: string) {
+    const rows = groupRankings[letter] ?? [];
+    const maxPts = Math.max(1, ...rows.map((r) => r.points));
+    return (
+      <div style={{ paddingTop: 12 }}>
+        {rows.map((r) => (
+          <div key={r.team} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <div style={{ width: 120 }}>{r.team}</div>
+            <div style={{ flex: 1, background: 'rgba(255,255,255,0.04)', height: 10, borderRadius: 6 }}>
+              <div style={{ width: `${(r.points / maxPts) * 100}%`, background: 'linear-gradient(90deg,var(--accent-1),var(--accent-2))', height: '100%', borderRadius: 6 }} />
+            </div>
+            <div style={{ width: 36, textAlign: 'right' }}>{r.points}</div>
+          </div>
+        ))}
+      </div>
     );
   }
 
@@ -80,87 +192,87 @@ export default function HomePage() {
       <div className="section-heading">
         <div>
           <h1>FIFA World Cup 2026 Predictor</h1>
-          <p className="small-text">Pick match results, view past scores, group standings, and the projected Round of 16 bracket.</p>
+          <p className="small-text">Interactive predictions — past matches are shown first. Use the theme toggle to switch visuals.</p>
         </div>
-        <button className="button-primary" type="button" onClick={applyPredictions}>
-          Finalize Predictions
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button className="button-secondary" onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}>Toggle theme</button>
+          <button className="button-primary" type="button" onClick={applyPredictions}>Finalize Predictions</button>
+        </div>
       </div>
 
       <section className="card">
         <div className="section-heading">
           <div>
-            <h2>Upcoming Group Stage Matches</h2>
-            <p className="small-text">Choose the predicted result and watch the standings update live.</p>
-          </div>
-        </div>
-
-        <div className="grid">
-          {upcomingMatches.map((match) => (
-            <div className="match-card" key={match.id}>
-              <div className="match-meta">
-                <strong>{match.home} vs {match.away}</strong>
-                <span>{formatMatchDate(match.date)}</span>
-                <span className="tag">Group {match.group}</span>
-              </div>
-              <div className="match-actions">
-                <div className="select-wrapper">
-                  <label htmlFor={`select-${match.id}`} className="small-text">Prediction</label>
-                  <select
-                    id={`select-${match.id}`}
-                    value={predictions[match.id] ?? 'home'}
-                    onChange={(event) => handlePrediction(match.id, event.target.value as Outcome)}
-                  >
-                    <option value="home">{match.home} Win</option>
-                    <option value="away">{match.away} Win</option>
-                    <option value="draw">Tie</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="section-heading">
-          <div>
-            <h2>Projected Round of 16</h2>
-            <p className="small-text">Seeded bracket uses the top two teams from each group after predictions.</p>
-          </div>
-        </div>
-
-        <div className="grid grid-2">
-          {roundOf16.map((item) => (
-            <div className="match-card" key={item.label}>
-              <div>
-                <strong>{item.label}</strong>
-                <span>{item.home} vs {item.away}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="section-heading">
-          <div>
             <h2>Past Matches</h2>
-            <p className="small-text">Completed matches are disabled and show final results.</p>
+            <p className="small-text">Most recent first.</p>
           </div>
         </div>
-
         <div className="grid">
-          {completedMatches.map((match) => (
-            <div className="match-card" key={match.id}>
-              <div className="match-meta">
-                <strong>{match.home} vs {match.away}</strong>
-                <span>{formatMatchDate(match.date)}</span>
-                <span className="tag">Result: {match.result ? predictionMap[match.result] : 'N/A'}</span>
+          {pastMatches.map((m) => (
+            <MatchCard key={m.id} match={m} value={predictions[m.id]} onSelect={(o) => handlePrediction(m.id, o)} />
+          ))}
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="section-heading">
+          <div>
+            <h2>Upcoming Matches</h2>
+            <p className="small-text">Choose the predicted result and watch standings update live.</p>
+          </div>
+        </div>
+        <div className="grid">
+          {upcomingMatches.map((m) => (
+            <MatchCard key={m.id} match={m} value={predictions[m.id]} onSelect={(o) => handlePrediction(m.id, o)} />
+          ))}
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="section-heading">
+          <div>
+            <h2>Projected Round of 16 (R-32)</h2>
+            <p className="small-text">Decide winners or use penalty shootout for ties.</p>
+          </div>
+        </div>
+        <div className="grid grid-2">
+          {roundOf16.map((r) => (
+            <KnockoutMatch key={r.label} label={r.label} home={r.home} away={r.away} />
+          ))}
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="section-heading">
+          <div>
+            <h2>Group Standings & Round-Robin Graphs</h2>
+            <p className="small-text">Standings update with your predictions.</p>
+          </div>
+        </div>
+        <div className="grid grid-2">
+          {groups.map((g) => (
+            <div className="card" key={g.letter}>
+              <h3>Group {g.letter}</h3>
+              {renderGroupGraph(g.letter)}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="card">
+        <div className="section-heading">
+          <div>
+            <h2>News</h2>
+            <p className="small-text">Latest tournament updates.</p>
+          </div>
+        </div>
+        <div className="grid">
+          {sampleNews.map((n) => (
+            <div key={n.id} className="match-card">
+              <div>
+                <strong>{n.title}</strong>
+                <div className="small-text">{n.time}</div>
               </div>
-              <button className="button-secondary button-disabled" type="button" disabled>
-                Match Completed
-              </button>
             </div>
           ))}
         </div>
@@ -170,56 +282,14 @@ export default function HomePage() {
         <div className="section-heading">
           <div>
             <h2>Stats</h2>
-            <p className="small-text">Watch top player stats and group performance as predictions are applied.</p>
+            <p className="small-text">Top players.</p>
           </div>
         </div>
-
         <div className="grid grid-3">
-          {stats.map((stat) => (
-            <div className="stats-item" key={stat.label}>
-              <span>{stat.label}</span>
-              <strong>{stat.value}</strong>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="card">
-        <div className="section-heading">
-          <div>
-            <h2>Group Standings</h2>
-            <p className="small-text">Standings are calculated from completed matches and your predictions.</p>
-          </div>
-        </div>
-
-        <div className="grid grid-2">
-          {groupStandings.map((group) => (
-            <div className="card" key={group.letter}>
-              <h3>Group {group.letter}</h3>
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Team</th>
-                    <th>P</th>
-                    <th>W</th>
-                    <th>D</th>
-                    <th>L</th>
-                    <th>Pts</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.standings.map((row) => (
-                    <tr key={row.team}>
-                      <td>{row.team}</td>
-                      <td>{row.played}</td>
-                      <td>{row.win}</td>
-                      <td>{row.draw}</td>
-                      <td>{row.loss}</td>
-                      <td>{row.points}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {stats.map((s) => (
+            <div key={s.label} className="stats-item">
+              <span>{s.label}</span>
+              <strong>{s.value}</strong>
             </div>
           ))}
         </div>
@@ -227,3 +297,5 @@ export default function HomePage() {
     </main>
   );
 }
+
+export { TeamCard, MatchCard };

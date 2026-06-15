@@ -192,3 +192,9 @@ export const stats: { label: string; value: string }[] = [
   { label: 'Top MVP', value: 'Lionel Messi (Argentina)' },
   { label: 'Most saves', value: 'Gianluigi Donnarumma (Italy) - 14 saves' }
 ];
+
+export const news = [
+  { id: 'n1', title: 'Official schedule released for group stage', time: '2026-03-10' },
+  { id: 'n2', title: 'Injury update: key player set to return', time: '2026-05-02' },
+  { id: 'n3', title: 'Stadium safety guidelines announced', time: '2026-04-28' }
+];
