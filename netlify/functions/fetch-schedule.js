@@ -8,8 +8,25 @@ const fetch = require('node-fetch');
 
 const CACHE_KEY = 'live:schedule';
 const CACHE_TTL = 15; // seconds
+const RATE_LIMIT_WINDOW = 60; // seconds
+const MAX_REQUESTS_PER_WINDOW = 20;
 
-async function getCache() {
+const localCache = { data: null, ts: 0 };
+const requestLog = [];
+
+function isRateLimited() {
+  const now = Date.now() / 1000;
+  while (requestLog.length > 0 && requestLog[0] < now - RATE_LIMIT_WINDOW) {
+    requestLog.shift();
+  }
+  if (requestLog.length >= MAX_REQUESTS_PER_WINDOW) {
+    return true;
+  }
+  requestLog.push(now);
+  return false;
+}
+
+async function getRedisCache() {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return null;
@@ -27,7 +44,7 @@ async function getCache() {
   }
 }
 
-async function setCache(obj) {
+async function setRedisCache(obj) {
   const url = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) return false;
@@ -58,15 +75,16 @@ async function fetchFromProvider() {
 
   try {
     if (provider === 'api-football') {
-      // Example: fixtures endpoint for season 2026
-      const url = `https://v3.football.api-sports.io/fixtures?season=2026`;
+      const url = `https://v3.football.api-sports.io/fixtures?season=2026&league=1`;
       const res = await fetch(url, { headers: { 'x-apisports-key': key } });
+      if (!res.ok) return { error: `API error: ${res.status}` };
       return await res.json();
     }
 
     if (provider === 'football-data') {
       const url = `https://api.football-data.org/v4/matches`;
       const res = await fetch(url, { headers: { 'X-Auth-Token': key } });
+      if (!res.ok) return { error: `API error: ${res.status}` };
       return await res.json();
     }
 
@@ -77,19 +95,37 @@ async function fetchFromProvider() {
 }
 
 exports.handler = async function (event, context) {
-  // Try cache first
-  const cached = await getCache();
+  // Check rate limit
+  if (isRateLimited()) {
+    console.warn('Rate limit exceeded');
+    return {
+      statusCode: 429,
+      body: JSON.stringify({ error: 'Too many requests' })
+    };
+  }
+
+  // Try Redis cache first
+  const cached = await getRedisCache();
   if (cached) {
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source: 'cache', data: cached })
+      body: JSON.stringify({ source: 'redis-cache', data: cached })
+    };
+  }
+
+  // Try local memory cache
+  const now = Date.now();
+  if (localCache.data && now - localCache.ts < CACHE_TTL * 1000) {
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: 'memory-cache', data: localCache.data })
     };
   }
 
   // Fetch from provider
   const data = await fetchFromProvider();
-  // If provider returned error, surface it
   if (data && data.error) {
     return {
       statusCode: 500,
@@ -97,8 +133,10 @@ exports.handler = async function (event, context) {
     };
   }
 
-  // Set cache (best-effort)
-  await setCache(data);
+  // Cache the result
+  localCache.data = data;
+  localCache.ts = now;
+  await setRedisCache(data); // best-effort
 
   return {
     statusCode: 200,
