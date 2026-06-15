@@ -40,10 +40,33 @@ export default function HomePage() {
 
   const live = useLiveData();
   useEffect(() => {
-    if (live) {
-      // provider returns { matches, stats, news } or similar
-      if (live.matches) setMatches(live.matches as Match[]);
+    if (live?.matches) {
+      setMatches(live.matches as Match[]);
     }
+  }, [live]);
+
+  const liveStatus = useMemo(() => {
+    if (!live) {
+      return { text: 'Connecting to live provider...', color: 'var(--accent-1)', background: 'rgba(56, 189, 248, 0.12)' };
+    }
+    if (live.source === 'provider') {
+      return { text: 'Live provider data loaded.', color: 'var(--accent-2)', background: 'rgba(34, 197, 94, 0.12)' };
+    }
+    if (live.source === 'cache') {
+      return { text: 'Using cached provider data.', color: 'var(--accent-1)', background: 'rgba(56, 189, 248, 0.12)' };
+    }
+    if (live.source === 'rate-limit-cache') {
+      return {
+        text: live.error ? `Rate limit fallback: ${live.error}` : 'Rate limit fallback: using cached data.',
+        color: 'var(--warning)',
+        background: 'rgba(251, 191, 36, 0.12)'
+      };
+    }
+    return {
+      text: live.error ? `Live provider fallback: ${live.error}` : 'Using fallback static schedule data.',
+      color: 'var(--warning)',
+      background: 'rgba(251, 191, 36, 0.12)'
+    };
   }, [live]);
 
   useEffect(() => {
@@ -160,6 +183,13 @@ export default function HomePage() {
           <button className="button-primary" type="button" onClick={applyPredictions}>Finalize Predictions</button>
         </div>
       </div>
+
+      <section className="card" style={{ marginBottom: 16, padding: 16, borderRadius: 20, background: liveStatus.background }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <span style={{ color: liveStatus.color, fontWeight: 600 }}>{liveStatus.text}</span>
+          {live?.error && <span style={{ color: liveStatus.color, opacity: 0.85 }}>{live.error}</span>}
+        </div>
+      </section>
 
       <section className="card">
         <div className="section-heading">

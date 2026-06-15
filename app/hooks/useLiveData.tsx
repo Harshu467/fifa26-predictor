@@ -6,6 +6,8 @@ interface LivePayload {
   matches?: any[];
   stats?: any[];
   news?: any[];
+  source?: string;
+  error?: string;
 }
 
 export default function useLiveData() {

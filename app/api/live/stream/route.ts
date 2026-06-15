@@ -1,34 +1,37 @@
-import { initialMatches } from '../../../match-data';
+import { fetchLiveData } from '../schedule/live-data';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-let lastSnapshot = { matches: initialMatches, ts: Date.now() };
+let lastSnapshot: any = { matches: [], stats: [], news: [], source: 'fallback', ts: Date.now() };
 
 export async function GET(req: Request) {
-  // Create a ReadableStream for SSE
   const { readable, writable } = new TransformStream<any, Uint8Array>();
   const writer = writable.getWriter();
   const encoder = new TextEncoder();
 
-  const send = (obj: any) => {
+  const sendEvent = (event: string, obj: any) => {
     try {
-      const encoded = encoder.encode(`data: ${JSON.stringify(obj)}\n\n`);
-      writer.write(encoded);
+      const payload = `event: ${event}\ndata: ${JSON.stringify(obj)}\n\n`;
+      writer.write(encoder.encode(payload));
     } catch (e) {
-      // Stream closed
+      // Stream closed or disconnected
     }
   };
 
-  // Send initial snapshot
-  send({ type: 'snapshot', payload: lastSnapshot });
+  const sendSnapshot = async () => {
+    const payload = await fetchLiveData();
+    lastSnapshot = payload;
+    sendEvent('snapshot', { payload });
+  };
 
-  // Periodic heartbeat and refresh (every 10 seconds)
-  const interval = setInterval(() => {
-    send({ type: 'heartbeat', ts: Date.now() });
+  await sendSnapshot();
+
+  const interval = setInterval(async () => {
+    await sendSnapshot();
+    sendEvent('heartbeat', { ts: Date.now() });
   }, 10000);
 
-  // Handle client disconnect
   const cleanup = () => {
     clearInterval(interval);
     try {
@@ -44,7 +47,7 @@ export async function GET(req: Request) {
     headers: {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
+      Connection: 'keep-alive',
       'Access-Control-Allow-Origin': '*'
     }
   });
