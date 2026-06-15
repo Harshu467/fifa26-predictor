@@ -64,6 +64,31 @@ npm install -g netlify-cli
 netlify deploy --prod --dir=.next
 ```
 
+### Netlify: live-data proxy & caching (recommended)
+
+This repo includes a Netlify serverless function at `netlify/functions/fetch-schedule.js` that proxies provider requests and uses Upstash Redis for short-term caching to avoid rate limits.
+
+Environment variables to set in Netlify (Site → Settings → Build & deploy → Environment):
+
+- `LIVE_API_PROVIDER` — `api-football` or `football-data`
+- `LIVE_API_KEY` — your provider API key
+- `UPSTASH_REDIS_REST_URL` — optional (for caching)
+- `UPSTASH_REDIS_REST_TOKEN` — optional (for caching)
+
+How it works:
+- Client polls `/api/live/schedule` (provided by the Next.js API route) which will return mock data if no provider is configured.
+- For lower latency and rate-limit safety on Netlify, call the Netlify function `/\.netlify/functions/fetch-schedule` instead. That function will return cached provider data if available.
+
+Example client fetch (polling):
+
+```js
+const res = await fetch('/.netlify/functions/fetch-schedule');
+const data = await res.json();
+// use data.data
+```
+
+Note: Netlify's serverless functions are short-lived — use caching (Upstash) with a short TTL (10-30s) to provide near-real-time updates without hitting API limits.
+
 ## Notes
 
 - The app is built for public use and can be deployed to Vercel or Netlify with minimal configuration.
