@@ -1,26 +1,45 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import { Bracket } from '@/components/bracket/Bracket';
 import { MatchCard } from '@/components/matches/MatchCard';
 import { PredictionModal } from '@/components/prediction/PredictionModal';
 import { StandingsTable } from '@/components/standings/StandingsTable';
 import { useTournamentStore } from '@/store/tournamentStore';
+import type { Match, Team } from '@/types/tournament';
 import {
   calculateStandings,
   generateBracket,
   getTournamentProgress,
-  teamById,
 } from '@/utils/tournamentEngine';
 import { Footer } from './Footer';
 import { Header } from './Header';
 import styles from './HomeExperience.module.css';
 
 export function HomeExperience() {
-  const { matches, selectedMatchId, selectMatch, resetPredictions } = useTournamentStore();
-  const standings = calculateStandings(matches);
+  const {
+    teams,
+    matches,
+    selectedMatchId,
+    liveDataStatus,
+    liveDataError,
+    liveDataUpdatedAt,
+    selectMatch,
+    resetPredictions,
+    refreshLiveData,
+  } = useTournamentStore();
+  const teamById = useMemo(
+    () => new Map<string, Team>(teams.map((team: Team) => [team.id, team])),
+    [teams],
+  );
+  const standings = calculateStandings(matches, teams);
   const bracket = generateBracket(standings);
   const progress = getTournamentProgress(matches);
-  const selectedMatch = matches.find((match) => match.id === selectedMatchId) ?? null;
+  const selectedMatch = matches.find((match: Match) => match.id === selectedMatchId) ?? null;
+
+  useEffect(() => {
+    void refreshLiveData();
+  }, [refreshLiveData]);
 
   return (
     <main className={styles.shell}>
@@ -31,23 +50,39 @@ export function HomeExperience() {
           <span>Tournament predicted</span>
         </div>
         <button onClick={resetPredictions}>Reset</button>
+        <button onClick={() => void refreshLiveData()}>Refresh live data</button>
+        <small>
+          {liveDataStatus === 'loading'
+            ? 'Loading API-Football...'
+            : liveDataStatus === 'error'
+              ? `Using fallback data: ${liveDataError}`
+              : liveDataUpdatedAt
+                ? `Live data updated ${new Intl.DateTimeFormat('en', {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                  }).format(new Date(liveDataUpdatedAt))}`
+                : 'Fallback schedule loaded'}
+        </small>
         <i style={{ width: `${progress}%` }} />
       </section>
       <MatchSection
         title="Sticky Live Matches"
-        matches={matches.filter((match) => match.status === 'live')}
+        matches={matches.filter((match: Match) => match.status === 'live')}
         sticky
         onSelect={selectMatch}
+        teamById={teamById}
       />
       <MatchSection
         title="Completed Matches"
-        matches={matches.filter((match) => match.status === 'completed')}
+        matches={matches.filter((match: Match) => match.status === 'completed')}
         onSelect={selectMatch}
+        teamById={teamById}
       />
       <MatchSection
         title="Upcoming Matches"
-        matches={matches.filter((match) => match.status === 'upcoming')}
+        matches={matches.filter((match: Match) => match.status === 'upcoming')}
         onSelect={selectMatch}
+        teamById={teamById}
       />
       <Section title="Group Standings">
         <StandingsTable standings={standings} />
@@ -70,11 +105,13 @@ function MatchSection({
   matches,
   sticky = false,
   onSelect,
+  teamById,
 }: {
   title: string;
-  matches: import('@/types/tournament').Match[];
+  matches: Match[];
   sticky?: boolean;
   onSelect: (id: string) => void;
+  teamById: Map<string, Team>;
 }) {
   return (
     <Section title={title} sticky={sticky}>
