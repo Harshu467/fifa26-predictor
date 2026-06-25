@@ -2,7 +2,7 @@ import { initialMatches } from '@/data/matches';
 import { teams } from '@/data/teams';
 import type { BracketMatch, Match, MatchPrediction, StandingRow, Team } from '@/types/tournament';
 
-export const teamById = new Map(teams.map((team) => [team.id, team]));
+export const fallbackTeamById = new Map(teams.map((team) => [team.id, team]));
 
 export function resolveWinner(match: Match, prediction: MatchPrediction): string | null {
   if (prediction.homeScore === null || prediction.awayScore === null) return null;
@@ -10,8 +10,11 @@ export function resolveWinner(match: Match, prediction: MatchPrediction): string
   return prediction.homeScore > prediction.awayScore ? match.homeTeamId : match.awayTeamId;
 }
 
-export function calculateStandings(matches: Match[]): Record<string, StandingRow[]> {
-  const grouped = teams.reduce<Record<string, Team[]>>((accumulator, team) => {
+export function calculateStandings(
+  matches: Match[],
+  tournamentTeams: Team[] = teams,
+): Record<string, StandingRow[]> {
+  const grouped = tournamentTeams.reduce<Record<string, Team[]>>((accumulator, team) => {
     accumulator[team.group] = [...(accumulator[team.group] ?? []), team];
     return accumulator;
   }, {});
