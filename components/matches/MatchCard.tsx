@@ -52,7 +52,7 @@ export function MatchCard({
         </div>
       </div>
       <PredictionBar percentages={match.predictionPercentages} />
-      <footer>
+      <footer className={styles.footer}>
         <span>
           {new Intl.DateTimeFormat('en', {
             month: 'short',

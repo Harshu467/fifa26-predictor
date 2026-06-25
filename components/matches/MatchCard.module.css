@@ -11,7 +11,7 @@
   backdrop-filter: blur(18px);
 }
 .topline,
-footer {
+.footer {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -64,7 +64,7 @@ footer {
   font-weight: 900;
   color: #0f172a;
 }
-footer {
+.footer {
   margin-top: 0.85rem;
 }
 @media (max-width: 620px) {
