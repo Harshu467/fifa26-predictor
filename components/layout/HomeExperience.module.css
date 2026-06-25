@@ -1,0 +1,86 @@
+.shell {
+  min-height: 100vh;
+  padding: 0 clamp(1rem, 4vw, 4rem);
+  background: radial-gradient(circle at top left, #1d4ed8 0, #0f172a 38%, #020617 100%);
+  color: #0f172a;
+}
+.section,
+.stickySection {
+  margin: 1.2rem auto;
+  max-width: 1380px;
+}
+.stickySection {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 0.9rem 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.7), transparent);
+  backdrop-filter: blur(14px);
+}
+.section h2,
+.stickySection h2 {
+  margin: 0 0 1rem;
+  color: #fff;
+  font-size: clamp(1.45rem, 3vw, 2.3rem);
+  letter-spacing: -0.04em;
+}
+.matchGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+.progress {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  max-width: 1380px;
+  margin: 0 auto 1.5rem;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  backdrop-filter: blur(16px);
+}
+.progress div {
+  display: grid;
+}
+.progress b {
+  font-size: 2rem;
+}
+.progress span {
+  color: #bfdbfe;
+}
+.progress button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.8rem 1rem;
+  background: #fff;
+  color: #0f172a;
+  font-weight: 900;
+  cursor: pointer;
+}
+.progress i {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 5px;
+  background: linear-gradient(90deg, #10b981, #38bdf8);
+  transition: width 0.3s ease;
+}
+@media (max-width: 1050px) {
+  .matchGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 700px) {
+  .matchGrid {
+    grid-template-columns: 1fr;
+  }
+  .stickySection {
+    top: 0;
+  }
+}

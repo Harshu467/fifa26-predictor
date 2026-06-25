@@ -1,0 +1,80 @@
+.card {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 28px;
+  padding: 1rem;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.68));
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.13);
+  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  backdrop-filter: blur(18px);
+}
+.topline,
+footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: #64748b;
+  font-size: 0.78rem;
+  text-transform: capitalize;
+}
+.topline strong {
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.68rem;
+}
+.live {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.completed {
+  background: #dcfce7;
+  color: #166534;
+}
+.upcoming {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.teams {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+}
+.teams > div:not(.score) {
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+  text-align: center;
+}
+.teams strong {
+  font-size: 0.98rem;
+}
+.teams small,
+.score small {
+  color: #64748b;
+}
+.score {
+  display: grid;
+  gap: 0.2rem;
+  text-align: center;
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #0f172a;
+}
+footer {
+  margin-top: 0.85rem;
+}
+@media (max-width: 620px) {
+  .teams {
+    grid-template-columns: 1fr;
+  }
+  .score {
+    order: 2;
+  }
+  .teams > div:last-child {
+    order: 3;
+  }
+}
