@@ -1,0 +1,16 @@
+.wrap {
+  height: 10px;
+  display: flex;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+.home {
+  background: linear-gradient(90deg, #00a86b, #39e58f);
+}
+.draw {
+  background: #f8c537;
+}
+.away {
+  background: linear-gradient(90deg, #2f6bff, #8fb3ff);
+}

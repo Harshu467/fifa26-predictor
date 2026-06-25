@@ -1,0 +1,18 @@
+.flag,
+.compact {
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.55));
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.16);
+}
+.flag {
+  width: 58px;
+  height: 58px;
+  font-size: 2rem;
+}
+.compact {
+  width: 34px;
+  height: 34px;
+  font-size: 1.15rem;
+}
